@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>water Drop</title>
+
+    <script>
+        var target_merge_size = 2;
+        var get_img_num = 0;
+
+        async function draw_img() {
+            var c = document.getElementById("MergeImageCanvas");
+            var ctx = c.getContext("2d");
+            var img = document.getElementById("CameraImage");
+            if(get_img_num < target_merge_size * target_merge_size - 1){
+                ctx.drawImage(img, 640 * parseInt(get_img_num/2), 480*(get_img_num%2));
+                get_img_num++;
+            }
+            else{
+                ctx.drawImage(img, 640 * parseInt(get_img_num/2), 480*(get_img_num%2));
+                get_img_num=0;
+            }
+        }
+    </script>
+
+</head>
+
+<body>
+    Video
+    <br>
+
+    <video id="Video" src="data/fastest.mp4" autoplay="autoplay"></video>
+
+    <canvas id="HiddenCanvas" width="640" height="480" hidden="true"></canvas>
+
+    <br>
+    Video Canvas
+    <br>
+
+    <canvas id="VideoCanvas" width="640" height="480"></canvas>
+
+    <!--IP camera
+    <br>
+
+    <img id="CameraImage" src="http://192.168.0.201:8083/stream.mjpg">
+    </img>
+
+    <br>
+    Merge Image Canvas
+    <br>
+
+    <canvas id="MergeImageCanvas" width=1280 height=960 style="border:1px solid #000000;">
+    </canvas>-->
+
+    <script src="public/main.js"></script>
+
+</body>
+
+</html>

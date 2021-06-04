@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>water Drop</title>
+    <script src="test.js"></script>
+    <script src="tfjs-m.min.js"></script>
+    <script src="config.js"></script>
+    <script src="yolo-tfjs-m.js"></script>
+
+    <style>
+        #big-box {
+            position: relative;
+        }
+
+        #img-box {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+        }
+
+        #img-box .rect {
+            position: absolute;
+            border: 2px solid #f00;
+            pointer-events: none;
+        }
+
+        #img-box .rect .className {
+            position: absolute;
+            top: 0;
+            /* background: #f00; */
+            color: #fff;
+        }
+
+        #myPlayer {
+            max-width: 600px;
+            width: 100%;
+        }
+    </style>
+
+    <script>
+        var target_merge_size = 2;
+        var get_img_num = 0;
+
+        async function draw_img() {
+            var c = document.getElementById("MergeImageCanvas");
+            var ctx = c.getContext("2d");
+            var img = document.getElementById("CameraImage");
+            if(get_img_num < target_merge_size * target_merge_size - 1){
+                ctx.drawImage(img, 640 * parseInt(get_img_num/2), 480*(get_img_num%2));
+                get_img_num++;
+            }
+            else{
+                ctx.drawImage(img, 640 * parseInt(get_img_num/2), 480*(get_img_num%2));
+                get_img_num=0;
+            }
+        }
+    </script>
+
+</head>
+
+<body>
+    <script type="module">
+        import * as yolo from "./node_modules/tfjs-yolo/dist/index.bundle.js";
+        let myYolo = yolo.v3tiny('tiny_waterDrop_2class/my_tfjs_model/model.json');
+    </script>
+
+    <div id="showBox">等待模型载入...</div>
+    <br>
+
+    <div id="big-box">
+        <video id="myPlayer" muted="true" autoplay src="fastest.mp4" controls="" playsinline="" webkit-playsinline="">
+        </video>
+        <!-- 用于展示识别框 -->
+        <div id="img-box">
+
+        </div>
+    </div>
+
+    <script>
+        var myModel = null;
+        var V = null;
+
+        var requestAnimationFrameIndex = null;
+        var myPlayer = document.getElementById("myPlayer");
+
+        var videoHeight = 0;
+        var videoWidth = 0;
+        var clientHeight = 0;
+        var clientWidth = 0;
+
+        var modelLoad = false;
+        var videoLoad = false;
+
+        var anchors = ANCHORS_TINY;
+        var modelUrl = 'tiny_waterDrop_2class/my_tfjs_model/model.json';
+
+        window.onload = function () {
+            // 当视频准备好了就准备开始识别吧
+            myPlayer.addEventListener("canplay", function () {
+                videoHeight = myPlayer.videoHeight;
+                videoWidth = myPlayer.videoWidth;
+                clientHeight = myPlayer.clientHeight;
+                clientWidth = myPlayer.clientWidth;
+                V = this;
+                videoLoad = true;
+            })
+            loadModel();
+        }
+
+        var modelPromise = tf.loadLayersModel(modelUrl);
+
+        // 载入模型文件
+        function loadModel() {
+            if (modelLoad) {
+                return;
+            }
+
+            // Load the model.
+            modelPromise.then(model => {
+                var showBox = document.getElementById("showBox");
+                showBox.innerHTML = "载入成功";
+                myModel = model;
+                detectImage();
+                modelLoad = true;
+            });
+
+        }
+
+        // 识别图片,并在页面展示
+        function detectImage() {
+
+            var showBox = document.getElementById("showBox");
+            showBox.innerHTML = "识别中...";
+
+            if (videoLoad) {
+                console.log("in detect progress");
+
+                // 准备用于识别的样本
+                var sample = tf.stack([
+                    tf.div(tf.cast(tf.browser.fromPixels(V), 'float32'), 255)
+                ])
+                console.log("prepare image finished");
+
+                // 获取到识别的结果
+                var output = (myModel.predict(sample));
+                console.log("get output finished");
+
+                // 
+                output = output.map(feats =>
+                    feats.reshape(feats.shape.slice(1))
+                )
+
+                var boxes = yoloEval(
+                    output,
+                    tf.tensor1d(anchors).reshape([-1, 2]),
+                    COCO_CLASSESS.length,
+                    [videoHeight, videoWidth]
+                )
+                console.log(boxes);
+
+                boxes.then(myBoxes => {
+
+                    showBox.innerHTML = "识别完毕";
+                    var $imgbox = document.getElementById('img-box');
+                    $imgbox.innerHTML = "";
+
+                    myBoxes.forEach(box => {
+
+                        var $div = document.createElement('div');
+                        $div.className = 'rect';
+
+                        var heightScale = (clientHeight / videoHeight);
+                        var widthScale = (clientWidth / videoWidth);
+                        var transformTop = box.top * heightScale;
+                        var transformLeft = box.left * widthScale;
+                        var transformWidth = box.width * widthScale;
+                        var transformHeight = box.height * heightScale;
+
+                        $div.style.top = transformTop + 'px';
+                        $div.style.left = transformLeft + 'px';
+                        $div.style.width = transformWidth + 'px';
+                        $div.style.height = transformHeight + 'px';
+                        $div.innerHTML = `<span class='className'>${box.classes} ${box.scores}</span>`;
+
+                        $imgbox.appendChild($div);
+                    })
+                })
+           }
+
+           setTimeout(function () {
+                detectImage();
+            }, 10);
+        }
+    </script>
+
+    IP camera
+    <br>
+
+    <img id="CameraImage" src="http://192.168.0.201:8083/stream.mjpg">
+    </img>
+
+    <br>
+    Merge Image Canvas
+    <br>
+
+    <canvas id="MergeImageCanvas" width=1280 height=960 style="border:1px solid #000000;">
+    </canvas>
+
+    <script>
+        // 循环定时器
+        var timer = setInterval(function(){
+            draw_img();
+            }, 100);
+    </script>
+
+</body>
+
+</html>
